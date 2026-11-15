@@ -137,7 +137,7 @@ class SimulationTests(unittest.TestCase):
 
     def test_examples_load_and_input_not_mutated(self):
         from pathlib import Path
-        config = load_config(Path(__file__).with_name('example_config.json'))
+        config = load_config(Path(__file__).with_name('example_config.md'))
         original = deepcopy(config)
         simulate(config, 24)
         self.assertEqual(config, original)

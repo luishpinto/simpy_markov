@@ -14,19 +14,15 @@ ROOT = Path(__file__).resolve().parent
 
 
 class MarkdownTests(unittest.TestCase):
-    def test_json_and_markdown_produce_same_results(self):
+    def test_markdown_loads_and_matches_direct_config(self):
         for stem in ('line_config', 'example_config'):
             with self.subTest(stem=stem):
                 md = load_config(ROOT / f'{stem}.md')
-                js = load_config(ROOT / f'{stem}.json')
-                self.assertTrue(md.pop('title'))
-                self.assertEqual(md.pop('output'), dict(output_dir='results', csv=True, plots=True))
-                for config in (md, js):
-                    for machine in config['machines']:
-                        machine.setdefault('inlet', None)
-                        machine.setdefault('outlet', None)
-                self.assertEqual(md, js)
-                for a, b in zip(run_simulation(24, 42, md, True), run_simulation(24, 42, js, True)):
+                direct = parse_markdown((ROOT / f'{stem}.md').read_text())
+                self.assertEqual(md, direct)
+                self.assertTrue(md['title'])
+                self.assertEqual(md['output'], dict(output_dir='results', csv=True, plots=True))
+                for a, b in zip(run_simulation(24, 42, md, True), run_simulation(24, 42, direct, True)):
                     pd.testing.assert_frame_equal(a, b)
 
     def test_invalid_documents_are_rejected(self):

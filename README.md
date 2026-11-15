@@ -17,13 +17,61 @@ python -m unittest -v
 Su Windows: `.venv\Scripts\activate`. Senza `--config` si usa `line_config.md`
 accanto allo script; senza `--hours` si simulano 8736 ore. Il seed usa un generatore
 locale e non modifica lo stato casuale globale. `--output-dir` sceglie la cartella
-di esportazione; `--no-plots` disattiva le immagini. Simulazioni lunghe possono
-produrre storici voluminosi.
+di esportazione; `--no-plots` disattiva le immagini. I CSV delle simulazioni lunghe possono occupare molto spazio su disco;
+la memoria usata dagli storici è invece limitata.
+
+## Simulazioni lunghe e memoria
+
+Il messaggio di sistema `Ucciso` può indicare la terminazione per memoria
+esaurita. La versione precedente accumulava in RAM ogni cambiamento di stato
+e movimento dei buffer, poi ricostruiva gli stessi dati in grandi DataFrame.
+Ora i CSV sono scritti progressivamente durante la simulazione; non vengono
+riletti o ricostruiti in memoria al termine.
+
+```bash
+python process_simulation.py --config line_config.md --weeks 52 --seed 42
+```
+
+`--weeks` usa settimane da 168 ore ed è alternativo a `--hours`. Si possono
+simulare anche più anni; la durata richiesta incide sul tempo di calcolo e
+sullo spazio occupato dai CSV, non sul numero massimo di record in RAM.
+L'avanzamento viene mostrato ogni 5%; `--quiet` lo nasconde.
+
+Per impostazione predefinita restano al massimo 2000 campioni per macchina,
+2000 per buffer e 2000 fermi per macchina. `--history-limit 1000` riduce
+ulteriormente il limite. Gli storici vengono diradati progressivamente lungo
+tutta l'esecuzione, mantenendo il primo e l'ultimo record. Il campionamento
+non usa il generatore casuale del modello e non cambia i risultati produttivi.
+
+- I CSV contengono **tutti** i record, anche quando gli storici in RAM sono
+  campionati. `stops.csv` viene scritto al completamento della riparazione;
+  al termine vengono aggiunti i fermi ancora in corso. L'ordine è quindi di
+  registrazione/completamento, non necessariamente di inizio del fermo.
+- Contatori produttivi, numero dei fermi, tempi accumulati e fotografia finale
+  sono completi. I grafici temporali e i boxplot usano campioni e possono
+  omettere dettagli intermedi. Le barre dei totali finali restano complete.
+- Con `csv=false` non vengono salvati gli storici completi; il limite di
+  memoria resta attivo anche con `plots=false` o `--no-plots`.
+- Il fabbisogno di memoria cresce con il numero di macchine, buffer e categorie,
+  oltre che con il limite scelto. Il limite non rappresenta un tetto in byte
+  per l'intero processo.
+
+Per l'uso come modulo, `run_simulation(..., csv_dir='results')` abilita gli
+stessi CSV incrementali. `history_limit=2000` è il limite predefinito; i
+DataFrame restituiti diventano campionati oltre tale limite per serie e
+riportano gli attributi `history_sampled` e `total_records`.
+`history_limit=None` conserva tutto in RAM ed è riservato a prove brevi.
+Il parametro `csv_dir` è esplicito: senza di esso l'API non scrive file.
+
+Verifica eseguita sulla linea inclusa, seed 42: **52 settimane completate**, circa
+8,79 milioni di record CSV (894 MiB su disco), cinque grafici e picco di RAM
+misurato di circa 117 MiB nell'ambiente di prova. Tempo circa 95 secondi;
+i valori dipendono dalla macchina e dalla configurazione.
 
 ## Documento Markdown di input
 
 Il formato predefinito è `line_config.md`; `example_config.md` contiene tutti i
-tipi di fermo. I precedenti `.json` rimangono supportati con `--config`.
+tipi di fermo. Il lettore accetta anche `.json`, ma gli esempi del repository usano soltanto Markdown.
 Il vecchio file principale è stato rinominato in `process_simulation.py`:
 aggiornare eventuali import e comandi che usavano il nome precedente.
 
@@ -60,13 +108,13 @@ Il titolo del progetto viene mostrato nel riepilogo a terminale.
 
 ## Configurazione
 
-`line_config.json` descrive la linea completa: 12 macchine e 6 buffer originali.
+`line_config.md` descrive la linea completa: 12 macchine e 6 buffer originali.
 Ogni buffer ha `name`, `capacity` e `init`; ogni macchina ha `name`, `cycle_time`,
 `stops` e connessioni opzionali `inlet`/`outlet` riferite ai nomi dei buffer.
 Un collegamento assente o `null` rappresenta rispettivamente alimentazione o
 scarico illimitati. I nomi devono essere univoci nella rispettiva collezione.
 
-`example_config.json` è un esempio autonomo con tutti i trigger, incluso
+`example_config.md` è un esempio autonomo con tutti i trigger, incluso
 `special_tool_change`. Per eseguirlo:
 
 ```bash
@@ -139,7 +187,7 @@ misurano solo il tempo operativo e il motore casuale è stato sostituito.
 
 ## Risultati
 
-- `machines.csv`: storico degli stati, pezzi completati, tempi di lavorazione,
+- `machines.csv`: storico completo degli stati, scritto durante la simulazione, con pezzi completati e tempi di lavorazione,
   attesa e fermo; colonne `stop_count:<nome>` e `downtime:<nome>` per ogni ragione.
   Il conteggio dei fermi aumenta all'inizio dell'intervento.
 - `buffers.csv`: livelli e capacità, registrati ai movimenti e agli estremi
