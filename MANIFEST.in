@@ -1,0 +1,3 @@
+include process_simulation.py requirements.txt
+recursive-include examples *.md
+recursive-include tests *.py

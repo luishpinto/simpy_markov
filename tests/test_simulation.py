@@ -5,7 +5,8 @@ import unittest
 
 import pandas as pd
 
-from process_simulation import load_config, run_simulation, sample
+from simpy_markov import load_config, run_simulation
+from simpy_markov.distributions import sample
 
 
 def fixed(value, unit='hours'):
@@ -137,7 +138,7 @@ class SimulationTests(unittest.TestCase):
 
     def test_examples_load_and_input_not_mutated(self):
         from pathlib import Path
-        config = load_config(Path(__file__).with_name('example_config.md'))
+        config = load_config(Path(__file__).resolve().parents[1] / 'examples' / 'example_config.md')
         original = deepcopy(config)
         simulate(config, 24)
         self.assertEqual(config, original)

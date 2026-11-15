@@ -5,9 +5,9 @@ import unittest
 
 import pandas as pd
 
-from process_simulation import run_simulation
-from simulation_history import History
-from test_simulation import fixed, line, stop
+from simpy_markov import run_simulation
+from simpy_markov.history import History
+from tests.test_simulation import fixed, line, stop
 
 
 class LongSimulationTests(unittest.TestCase):

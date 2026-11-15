@@ -7,10 +7,10 @@ import unittest
 
 import pandas as pd
 
-from markdown_config import parse_markdown
-from process_simulation import load_config, run_simulation
+from simpy_markov.markdown_config import parse_markdown
+from simpy_markov import load_config, run_simulation
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1] / 'examples'
 
 
 class MarkdownTests(unittest.TestCase):
@@ -47,7 +47,7 @@ class MarkdownTests(unittest.TestCase):
             config = root / 'project.md'
             config.write_text(text.replace('| plots | true |', '| plots | false |')
                               .replace('| output_dir | results |', '| output_dir | configured |'))
-            command = [sys.executable, str(ROOT / 'process_simulation.py'), '--config', str(config),
+            command = [sys.executable, '-m', 'simpy_markov', '--config', str(config),
                        '--hours', '1', '--seed', '42']
             result = subprocess.run(command, cwd=root, text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)

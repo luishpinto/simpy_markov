@@ -1,24 +1,113 @@
-# Simulazione Ford Scorpion
+# simpy_markov
 
-Simulazione Python/SimPy con un unico modello `ProductionMachine`, configurato
-tramite Markdown o JSON. Le precedenti classi `Machine` e `CategoryMachine` sono rimosse.
-Richiede Python 3.10 o successivo.
+Biblioteca Python per simulare processi produttivi con SimPy: buffer, macchine,
+fermi configurabili e CSV incrementali per simulazioni lunghe. Versione 0.1.0;
+richiede Python 3.10 o successivo. Il nome per pip e il comando sono
+`simpy-markov`, il nome da importare è `simpy_markov`.
 
-## Avvio
+## Installazione
+
+Da GitHub, in qualsiasi ambiente Python compatibile:
+
+```bash
+python -m pip install git+https://github.com/luishpinto/simpy_markov.git
+```
+
+Git deve essere disponibile per l'installazione da repository. In alternativa,
+dalla copia locale o da un archivio del progetto estratto:
+
+```bash
+python -m pip install .
+```
+
+Per lavorare sul codice dal repository:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-python process_simulation.py --config line_config.md --hours 24 --seed 42
-python -m unittest -v
+python -m pip install -e .
+python -m unittest discover -s tests -t . -v
 ```
 
-Su Windows: `.venv\Scripts\activate`. Senza `--config` si usa `line_config.md`
-accanto allo script; senza `--hours` si simulano 8736 ore. Il seed usa un generatore
-locale e non modifica lo stato casuale globale. `--output-dir` sceglie la cartella
-di esportazione; `--no-plots` disattiva le immagini. I CSV delle simulazioni lunghe possono occupare molto spazio su disco;
-la memoria usata dagli storici è invece limitata.
+Su Windows: `.venv\Scripts\activate`. Il pacchetto sarà importabile da ogni
+cartella usando il Python dell'ambiente in cui è stato installato. Non richiede
+modifiche a `sys.path` o `PYTHONPATH`. Non è pubblicato su PyPI.
+`pyproject.toml` è la fonte dei metadati e delle dipendenze; `requirements.txt`
+installa lo stesso progetto.
+
+## Uso come biblioteca
+
+```python
+from simpy_markov import load_config, run_simulation
+
+config = load_config("progetto.md")
+machines, buffers, stops = run_simulation(
+    hours=52 * 168,
+    config=config,
+    seed=42,
+    return_events=True,
+    csv_dir="results",
+)
+```
+
+`load_config()` senza percorso carica la linea Ford Scorpion inclusa nel
+pacchetto; anche `run_simulation()` senza `config` usa questa linea. L'API
+pubblica esporta `load_config`, `validate_line`, `validate_machine`,
+`run_simulation`, `save_plots`, `ProductionMachine` e `Buffer`.
+L'importazione non avvia simulazioni e non scrive file. I grafici vengono
+caricati solo quando si chiama `save_plots`.
+
+## Avvio da terminale
+
+Da qualsiasi cartella, usando la linea inclusa nel pacchetto:
+
+```bash
+simpy-markov --weeks 52 --seed 42
+simpy-markov --version
+```
+
+Per una propria configurazione Markdown:
+
+```bash
+simpy-markov --config progetto.md --weeks 52 --seed 42
+python -m simpy_markov --config progetto.md --hours 24 --seed 42
+```
+
+Senza durata si simulano 8736 ore. Gli output relativi alla directory corrente
+vanno in `results/`, salvo configurazione diversa; `--output-dir` sceglie la
+cartella e `--no-plots` disattiva le immagini. Nel repository gli input
+modificabili si trovano in `examples/`:
+
+```bash
+simpy-markov --config examples/line_config.md --hours 24 --seed 42
+```
+
+Il precedente `python process_simulation.py ...` resta disponibile dalla copia
+del repository dopo l'installazione. Per gli import usare `simpy_markov`.
+Il seed usa un generatore locale senza modificare lo stato casuale globale.
+I CSV lunghi possono occupare molto spazio su disco; gli storici in RAM hanno
+un limite indipendente dalla durata della simulazione.
+
+## Struttura del progetto
+
+```text
+pyproject.toml
+src/simpy_markov/
+    __init__.py       API pubblica
+    __main__.py       python -m simpy_markov
+    simulation.py    motore della linea
+    machine.py       macchina configurabile
+    buffer.py        buffer
+    config.py        caricamento e validazione
+    markdown_config.py
+    distributions.py
+    history.py       memoria limitata e CSV incrementali
+    plotting.py
+    cli.py
+    data/            configurazioni incluse nell'installazione
+examples/            configurazioni modificabili
+tests/              test automatici
+```
 
 ## Simulazioni lunghe e memoria
 
@@ -29,7 +118,7 @@ Ora i CSV sono scritti progressivamente durante la simulazione; non vengono
 riletti o ricostruiti in memoria al termine.
 
 ```bash
-python process_simulation.py --config line_config.md --weeks 52 --seed 42
+simpy-markov --config examples/line_config.md --weeks 52 --seed 42
 ```
 
 `--weeks` usa settimane da 168 ore ed è alternativo a `--hours`. Si possono
@@ -72,8 +161,8 @@ i valori dipendono dalla macchina e dalla configurazione.
 
 Il formato predefinito è `line_config.md`; `example_config.md` contiene tutti i
 tipi di fermo. Il lettore accetta anche `.json`, ma gli esempi del repository usano soltanto Markdown.
-Il vecchio file principale è stato rinominato in `process_simulation.py`:
-aggiornare eventuali import e comandi che usavano il nome precedente.
+Il codice principale è nel pacchetto `simpy_markov`;
+`process_simulation.py` è un avvio compatibile dalla copia del repository.
 
 Il documento ha un titolo `# Nome progetto` e tre sezioni obbligatorie:
 
@@ -118,7 +207,7 @@ scarico illimitati. I nomi devono essere univoci nella rispettiva collezione.
 `special_tool_change`. Per eseguirlo:
 
 ```bash
-python process_simulation.py --config example_config.md --hours 24 --seed 42
+simpy-markov --config examples/example_config.md --hours 24 --seed 42
 ```
 
 Le chiavi di `stops` sono nomi liberi; non esistono categorie obbligatorie.
@@ -205,10 +294,10 @@ un ciclo o ripristino che termina proprio lì sarà ancora nello stato precedent
 con il tempo trascorso contabilizzato.
 
 ```python
-from process_simulation import load_config, run_simulation
+from simpy_markov import load_config, run_simulation
 
 machines, buffers, stops = run_simulation(
-    hours=24, seed=42, config=load_config('example_config.md'), return_events=True
+    hours=24, seed=42, config=load_config('examples/example_config.md'), return_events=True
 )
 ```
 
