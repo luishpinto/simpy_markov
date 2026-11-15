@@ -24,7 +24,7 @@ class PackageTests(unittest.TestCase):
 from importlib.metadata import version
 import sys
 import simpy_markov
-assert simpy_markov.__version__ == version('simpy-markov') == '0.1.0'
+assert simpy_markov.__version__ == version('simpy-markov') == '0.2.0'
 assert 'matplotlib.pyplot' not in sys.modules
 machines, buffers = simpy_markov.run_simulation(hours=1, seed=42)
 assert machines.name.nunique() == 12
@@ -44,7 +44,7 @@ assert buffers.name.nunique() == 6
             for command in ([sys.executable, '-I', '-m', 'simpy_markov'], [str(console)]):
                 result = subprocess.run(command + ['--version'], cwd=folder, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('0.1.0', result.stdout)
+                self.assertIn('0.2.0', result.stdout)
             result = subprocess.run([str(console), '--hours', '1', '--no-plots', '--quiet'],
                                     cwd=folder, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)

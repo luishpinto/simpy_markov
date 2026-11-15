@@ -3,7 +3,7 @@ import re
 
 
 PARAM_COLUMNS = {'name', 'parameter', 'type', 'distribution', 'mean', 'std',
-                 'value', 'unit', 'probability', 'every'}
+                 'value', 'unit', 'probability', 'every', 'blocks_machine'}
 
 
 def parse_markdown(text):
@@ -78,7 +78,10 @@ def parse_markdown(text):
                 expected = PARAM_COLUMNS
             else:
                 fail(lineno, 'tabella fuori da una sezione valida')
-            if len(cells) != len(set(cells)) or set(cells) != expected:
+            valid_columns = [expected]
+            if section == 'Machine' and subsection == 'Parameters':
+                valid_columns.append(expected - {'blocks_machine'})
+            if len(cells) != len(set(cells)) or set(cells) not in valid_columns:
                 fail(lineno, f'colonne richieste: {", ".join(sorted(expected))}')
             table_key = (section, machine['name'] if machine else None, subsection)
             if table_key in seen_tables:
@@ -121,6 +124,10 @@ def parse_markdown(text):
             definitions.add(key)
             values = {k: numeric(v, k, lineno) if k in ('mean', 'std', 'value', 'probability', 'every') else v
                       for k, v in row.items() if k not in ('name', 'parameter') and v not in ('', '-')}
+            if 'blocks_machine' in values:
+                if parameter != 'trigger' or values['blocks_machine'] not in ('true', 'false'):
+                    fail(lineno, 'blocks_machine: usare true/false soltanto nella riga trigger')
+                values['blocks_machine'] = values['blocks_machine'] == 'true'
             if parameter == 'cycle_time' and name == '-':
                 if 'cycle_time' in machine:
                     fail(lineno, 'cycle_time duplicato')

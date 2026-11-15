@@ -33,6 +33,8 @@ def validate_machine(config):
         trigger = stop.get('trigger', {})
         if not isinstance(trigger, dict):
             raise ValueError('trigger deve essere un oggetto')
+        if not isinstance(trigger.get('blocks_machine', True), bool):
+            raise ValueError('blocks_machine deve essere booleano')
         kind = trigger.get('type')
         if kind == 'operating_time':
             validate_distribution(trigger, positive=True)

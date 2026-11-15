@@ -13,9 +13,10 @@ from .history import CsvRecorder, History
 from .machine import ProductionMachine
 
 EVENT_COLUMNS = ['machine', 'reason', 'trigger', 'start', 'end', 'planned_duration',
-                 'elapsed_duration', 'completed']
+                 'elapsed_duration', 'completed', 'blocks_machine']
 MACHINE_COLUMNS = ['name', 'time', 'status', 'stop_reason', 'takt', 'running',
-                   'standby', 'failed_time', 'counter', 'stops']
+                   'standby', 'failed_time', 'counter', 'stops', 'processing_time',
+                   'actual_cycle_time', 'time_between_completions']
 
 
 def run_simulation(hours=8736.0, seed=None, config=None, return_events=False,
@@ -34,7 +35,7 @@ def run_simulation(hours=8736.0, seed=None, config=None, return_events=False,
     env, rng = simpy.Environment(), random.Random(seed)
     reasons = list(dict.fromkeys(reason for m in config['machines'] for reason in m.get('stops', {})))
     fields = [*MACHINE_COLUMNS, *[f'stop_count:{r}' for r in reasons],
-              *[f'downtime:{r}' for r in reasons]]
+              *[f'downtime:{r}' for r in reasons], *[f'event_time:{r}' for r in reasons]]
     with ExitStack() as stack:
         recorder = stack.enter_context(CsvRecorder(csv_dir, fields, EVENT_COLUMNS)) if csv_dir is not None else None
         buffers = {b['name']: Buffer(env, **b, history_limit=history_limit, recorder=recorder)
@@ -53,8 +54,12 @@ def run_simulation(hours=8736.0, seed=None, config=None, return_events=False,
                     progress(env.now, hours)
         for machine in machines:
             machine.save()
-            if recorder is not None and machine.current_event is not None:
-                recorder.write('stops', machine.current_event)
+            if recorder is not None:
+                active = list(machine.parallel_events.values())
+                if machine.current_event is not None:
+                    active.append(machine.current_event)
+                for event in active:
+                    recorder.write('stops', event)
         for buffer in buffers.values():
             buffer.save()
     machine_df = pd.DataFrame([row for m in machines for row in m.stat.records()])

@@ -1,7 +1,7 @@
 # simpy_markov
 
 Biblioteca Python per simulare processi produttivi con SimPy: buffer, macchine,
-fermi configurabili e CSV incrementali per simulazioni lunghe. Versione 0.1.0;
+fermi configurabili e CSV incrementali per simulazioni lunghe. Versione 0.2.0;
 richiede Python 3.10 o successivo. Il nome per pip e il comando sono
 `simpy-markov`, il nome da importare è `simpy_markov`.
 
@@ -179,8 +179,9 @@ Il documento ha un titolo `# Nome progetto` e tre sezioni obbligatorie:
 
 Nella tabella Parameters le colonne sono:
 `name`, `parameter`, `type`, `distribution`, `mean`, `std`, `value`, `unit`,
-`probability`, `every`. Usare `-` per i campi non applicabili. Le intestazioni
-sono fisse, ma l'ordine delle colonne è libero.
+`probability`, `every`, `blocks_machine`. Usare `-` per i campi non applicabili. Le intestazioni
+sono fisse, ma l'ordine delle colonne è libero. I vecchi documenti senza
+`blocks_machine` restano validi: il comportamento predefinito è bloccante.
 
 La riga del ciclo usa `name=-`, `parameter=cycle_time`. Ogni fermo ha due righe
 con lo stesso nome libero: `parameter=trigger` e `parameter=time_to_repair`.
@@ -194,6 +195,62 @@ si avvia il comando. `--output-dir` prevale sul documento e `--no-plots`
 disattiva i grafici anche se il documento contiene `plots=true`. I file già
 presenti nella cartella non vengono cancellati quando un output è disattivato.
 Il titolo del progetto viene mostrato nel riepilogo a terminale.
+
+## Eventi bloccanti e paralleli
+
+La colonna `blocks_machine` si compila soltanto nella riga `trigger`, con
+`true` oppure `false`. Nelle righe `cycle_time` e `time_to_repair` usare `-`.
+I nomi degli eventi restano completamente liberi.
+
+| name | parameter | type | distribution | mean | std | value | unit | probability | every | blocks_machine |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| - | cycle_time | - | fixed | - | - | 18 | minutes | - | - | - |
+| maintenance | trigger | operating_time | fixed | - | - | 12 | minutes | - | - | true |
+| maintenance | time_to_repair | - | fixed | - | - | 10 | minutes | - | - | - |
+| tool_change | trigger | cycle_count | - | - | - | - | - | - | 250 | false |
+| tool_change | time_to_repair | - | fixed | - | - | 5 | minutes | - | - | - |
+
+`true` sospende la macchina e poi riprende la lavorazione residua. `false`
+avvia un'attività in parallelo: la produzione continua e il ripristino avanza
+anche mentre la macchina attende un buffer o è ferma per un altro motivo.
+Attività parallele di categorie diverse possono sovrapporsi. Non viene
+ipotizzata una risorsa operatore condivisa.
+
+Una stessa categoria non può avere più interventi attivi: gli scatti per
+ciclo/conteggio mentre quell'attività è in corso vengono ignorati, senza code.
+Il prossimo intervallo `operating_time` della categoria viene campionato
+soltanto alla fine dell'intervento. I timer delle altre categorie avanzano
+normalmente quando la macchina lavora, anche se ci sono attività parallele.
+
+Negli esempi inclusi e in `perkins_compact_x.md` la manutenzione è impostata
+bloccante; `tool_change`, `special_tool_change` e i controlli qualità degli
+esempi sono paralleli. È una scelta esplicita dei documenti di esempio:
+il programma non assegna alcun comportamento in base al nome.
+
+I risultati distinguono, sempre in ore:
+
+- `takt`: tempo campionato per il ciclo corrente, mantenuto per compatibilità.
+- `processing_time`: tempo di sola lavorazione dell'ultimo ciclo lavorato.
+- `actual_cycle_time`: durata dell'ultimo ciclo lavorato, dall'inizio della
+  lavorazione alla sua fine, inclusi gli interventi bloccanti al suo interno.
+  Le attese dei buffer e gli interventi tra due cicli sono esclusi.
+- `time_between_completions`: intervallo tra gli ultimi due pezzi trasferiti
+  all'uscita; include anche attese dei buffer e interventi tra i pezzi.
+  Per il primo pezzo rimane vuoto.
+
+I campi dell'ultimo ciclo restano vuoti finché nessun ciclo è stato lavorato
+interamente, poi mantengono l'ultimo valore anche mentre il successivo è in
+corso. Un ciclo può essere già lavorato ma ancora in attesa del buffer di
+uscita. Nell'esempio sopra il primo ciclo ha 18 minuti di `processing_time`
+e 28 minuti di `actual_cycle_time`. Il grafico `cycle_time.png` usa il tempo
+effettivo e mostra anche medie e valori estremi, per rendere visibili i fermi.
+
+`downtime:<nome>` e `failed_time` misurano solo il tempo in cui la macchina è
+ferma per eventi bloccanti. `event_time:<nome>` misura la durata trascorsa
+dell'intervento, anche parallelo. Le durate parallele possono sovrapporsi e
+non vanno sommate per ricavare il tempo perso dalla macchina. `stops.csv`
+include `blocks_machine`, oltre alle durate previste/trascorse, anche per le
+attività ancora in corso all'orizzonte della simulazione.
 
 ## Configurazione
 
@@ -216,11 +273,11 @@ Ogni fermo definisce `trigger` e `time_to_repair`:
 ```json
 {
   "tool_change": {
-    "trigger": {"type": "cycle_count", "every": 500},
+    "trigger": {"type": "cycle_count", "every": 500, "blocks_machine": false},
     "time_to_repair": {"distribution": "fixed", "value": 5, "unit": "minutes"}
   },
   "special_tool_change": {
-    "trigger": {"type": "cycle_count", "every": 2000},
+    "trigger": {"type": "cycle_count", "every": 2000, "blocks_machine": false},
     "time_to_repair": {"distribution": "normal", "mean": 15, "std": 2, "unit": "minutes"}
   }
 }
@@ -233,7 +290,7 @@ Ogni fermo definisce `trigger` e `time_to_repair`:
 | `cycle_count` | `every`, intero positivo | Scatta dopo ogni N pezzi completati e trasferiti all'uscita, prima del prossimo ciclo. |
 
 I timer operativi e le posizioni dei fermi probabilistici avanzano solo durante
-la lavorazione, mai durante attese o riparazioni. Un ciclo interrotto riprende
+la lavorazione, mai durante attese o riparazioni bloccanti. Un ciclo interrotto riprende
 senza scarti né rilavorazioni. Ogni fermo temporale ricampiona solo il proprio
 intervallo dopo il ripristino. I contatori di ciclo sono indipendenti per fermo.
 Più fermi probabilistici possono avvenire nello stesso ciclo.
@@ -242,8 +299,9 @@ Gli eventi simultanei della fase di lavorazione sono serviti in ordine di
 configurazione; anche un evento all'esatta fine della lavorazione viene servito
 prima dell'uscita. I fermi `cycle_count` seguono il trasferimento del pezzo,
 sempre in ordine di configurazione. Al pezzo 2000 `tool_change` e
-`special_tool_change` vengono quindi eseguiti entrambi, in sequenza: il secondo
-non sostituisce il primo. Le riparazioni non si sovrappongono.
+`special_tool_change` vengono quindi avviati entrambi: il secondo
+non sostituisce il primo. Gli interventi bloccanti sono sequenziali; le attività
+con `blocks_machine=false` possono invece sovrapporsi.
 
 ## Distribuzioni
 
@@ -277,15 +335,17 @@ misurano solo il tempo operativo e il motore casuale è stato sostituito.
 ## Risultati
 
 - `machines.csv`: storico completo degli stati, scritto durante la simulazione, con pezzi completati e tempi di lavorazione,
-  attesa e fermo; colonne `stop_count:<nome>` e `downtime:<nome>` per ogni ragione.
+  attesa e fermo; colonne `stop_count:<nome>`, `downtime:<nome>` e
+  `event_time:<nome>` per ogni ragione.
   Il conteggio dei fermi aumenta all'inizio dell'intervento.
 - `buffers.csv`: livelli e capacità, registrati ai movimenti e agli estremi
   temporali. Non sono campioni uniformi nel tempo.
 - `stops.csv`: un record per intervento con nome della macchina, ragione,
-  trigger, inizio, fine, durata prevista, durata trascorsa e completamento.
+  trigger, `blocks_machine`, inizio, fine, durata prevista, durata trascorsa e completamento.
   Una riparazione ancora in corso ha `completed=false` e `end` vuoto.
 - Cinque PNG: tempo operativo, downtime, numero dei fermi, tempi ciclo e livelli
-  dei buffer. Il boxplot dei tempi ciclo usa campioni ai cambi di stato e non
+  dei buffer. Il boxplot dei tempi ciclo effettivi usa gli ultimi valori completati
+  campionati ai cambi di stato e non
   rappresenta una distribuzione pesata una volta per pezzo.
 
 La fotografia finale comprende anche la frazione di lavoro, attesa o riparazione

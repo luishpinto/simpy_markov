@@ -5,6 +5,6 @@ from .machine import ProductionMachine
 from .simulation import run_simulation
 from .plotting import save_plots
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 __all__ = ['Buffer', 'ProductionMachine', 'load_config', 'validate_line',
            'validate_machine', 'run_simulation', 'save_plots']
