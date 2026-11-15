@@ -11,7 +11,7 @@ import pandas as pd
 import simpy
 
 UNITS = {'seconds': 1 / 3600, 'minutes': 1 / 60, 'hours': 1.0}
-DEFAULT_CONFIG = Path(__file__).with_name('line_config.json')
+DEFAULT_CONFIG = Path(__file__).with_name('line_config.md')
 EVENT_COLUMNS = ['machine', 'reason', 'trigger', 'start', 'end', 'planned_duration',
                  'elapsed_duration', 'completed']
 
@@ -232,13 +232,27 @@ class ProductionMachine:
 
 
 def load_config(path=DEFAULT_CONFIG):
-    with Path(path).open(encoding='utf-8') as stream:
-        return json.load(stream)
+    path = Path(path)
+    if path.suffix.lower() == '.md':
+        from markdown_config import parse_markdown
+        return parse_markdown(path.read_text(encoding='utf-8'))
+    if path.suffix.lower() == '.json':
+        with path.open(encoding='utf-8') as stream:
+            return json.load(stream)
+    raise ValueError('Formato input supportato: .md oppure .json')
 
 
 def validate_line(config):
     if not isinstance(config, dict) or not config.get('machines'):
         raise ValueError('La linea deve contenere almeno una macchina')
+    output = config.get('output', {})
+    if not isinstance(output, dict) or set(output) - {'output_dir', 'csv', 'plots'}:
+        raise ValueError('Configurazione output non valida')
+    for key in ('csv', 'plots'):
+        if key in output and not isinstance(output[key], bool):
+            raise ValueError(f'output.{key} deve essere booleano')
+    if 'output_dir' in output and (not isinstance(output['output_dir'], str) or not output['output_dir']):
+        raise ValueError('output_dir deve essere una stringa non vuota')
     buffers = config.get('buffers', [])
     names = [b['name'] for b in buffers]
     if len(names) != len(set(names)):
@@ -331,21 +345,27 @@ def main():
     parser.add_argument('--config', type=Path, default=DEFAULT_CONFIG)
     parser.add_argument('--hours', type=float, default=8736.0)
     parser.add_argument('--seed', type=int)
-    parser.add_argument('--output-dir', type=Path, default=Path('results'))
+    parser.add_argument('--output-dir', type=Path, help='Sovrascrive output_dir del documento')
     parser.add_argument('--no-plots', action='store_true')
     args = parser.parse_args()
     try:
+        config = load_config(args.config)
         machines, buffers, events = run_simulation(args.hours, args.seed,
-                                                  load_config(args.config), return_events=True)
+                                                  config, return_events=True)
     except (ValueError, KeyError, TypeError, OSError) as error:
         parser.error(str(error))
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    for filename, frame in [('machines.csv', machines), ('buffers.csv', buffers), ('stops.csv', events)]:
-        frame.to_csv(args.output_dir / filename, index=False)
-    if not args.no_plots:
-        save_plots(machines, buffers, events, args.output_dir)
+    output = config.get('output', {})
+    output_dir = args.output_dir or Path(output.get('output_dir', 'results'))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if output.get('csv', True):
+        for filename, frame in [('machines.csv', machines), ('buffers.csv', buffers), ('stops.csv', events)]:
+            frame.to_csv(output_dir / filename, index=False)
+    if output.get('plots', True) and not args.no_plots:
+        save_plots(machines, buffers, events, output_dir)
+    if config.get('title'):
+        print(config['title'])
     print(machines.groupby('name', sort=False)[['counter', 'stops', 'running', 'failed_time']].last())
-    print(f'Risultati salvati in {args.output_dir.resolve()}')
+    print(f'Risultati salvati in {output_dir.resolve()}')
 
 
 if __name__ == '__main__':

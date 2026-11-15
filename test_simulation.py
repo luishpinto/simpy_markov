@@ -5,7 +5,7 @@ import unittest
 
 import pandas as pd
 
-from ford_scorpion_process_simulation import load_config, run_simulation, sample
+from process_simulation import load_config, run_simulation, sample
 
 
 def fixed(value, unit='hours'):

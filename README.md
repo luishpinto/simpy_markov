@@ -1,7 +1,7 @@
 # Simulazione Ford Scorpion
 
 Simulazione Python/SimPy con un unico modello `ProductionMachine`, configurato
-tramite JSON. Le precedenti classi `Machine` e `CategoryMachine` sono rimosse.
+tramite Markdown o JSON. Le precedenti classi `Machine` e `CategoryMachine` sono rimosse.
 Richiede Python 3.10 o successivo.
 
 ## Avvio
@@ -10,15 +10,53 @@ Richiede Python 3.10 o successivo.
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python ford_scorpion_process_simulation.py --config line_config.json --hours 24 --seed 42
+python process_simulation.py --config line_config.md --hours 24 --seed 42
 python -m unittest -v
 ```
 
-Su Windows: `.venv\Scripts\activate`. Senza `--config` si usa `line_config.json`
+Su Windows: `.venv\Scripts\activate`. Senza `--config` si usa `line_config.md`
 accanto allo script; senza `--hours` si simulano 8736 ore. Il seed usa un generatore
 locale e non modifica lo stato casuale globale. `--output-dir` sceglie la cartella
 di esportazione; `--no-plots` disattiva le immagini. Simulazioni lunghe possono
 produrre storici voluminosi.
+
+## Documento Markdown di input
+
+Il formato predefinito è `line_config.md`; `example_config.md` contiene tutti i
+tipi di fermo. I precedenti `.json` rimangono supportati con `--config`.
+Il vecchio file principale è stato rinominato in `process_simulation.py`:
+aggiornare eventuali import e comandi che usavano il nome precedente.
+
+Il documento ha un titolo `# Nome progetto` e tre sezioni obbligatorie:
+
+- `## Buffer`: tabella `name`, `init`, `capacity`. Per “taglio” si intende la
+  capacità massima; `init` è la quantità iniziale. Sono ammesse tabelle senza
+  righe per configurazioni prive di buffer.
+- `## Machine`: una sottosezione `### Nome macchina` per ciascuna macchina.
+  `#### Connections` contiene una tabella con colonne `inlet`, `outlet` e una
+  sola riga. `-`, `null` o una cella vuota indicano collegamenti illimitati.
+  `#### Parameters` contiene la tabella dei parametri probabilistici.
+- `## Output`: tabella con colonne `parameter`, `value` per `output_dir`,
+  `csv` e `plots`. I due flag usano `true`/`false`; i valori predefiniti sono
+  `results`, `true`, `true`.
+
+Nella tabella Parameters le colonne sono:
+`name`, `parameter`, `type`, `distribution`, `mean`, `std`, `value`, `unit`,
+`probability`, `every`. Usare `-` per i campi non applicabili. Le intestazioni
+sono fisse, ma l'ordine delle colonne è libero.
+
+La riga del ciclo usa `name=-`, `parameter=cycle_time`. Ogni fermo ha due righe
+con lo stesso nome libero: `parameter=trigger` e `parameter=time_to_repair`.
+`type` è compilato soltanto per il trigger; gli altri parametri seguono le
+regole delle distribuzioni e dei trigger descritte sotto. Nessun contenuto
+Markdown viene eseguito come codice. Il formato accetta titoli e tabelle;
+testo libero, blocchi di codice e celle contenenti `|` non sono supportati.
+
+La cartella di output relativa viene risolta rispetto alla directory da cui
+si avvia il comando. `--output-dir` prevale sul documento e `--no-plots`
+disattiva i grafici anche se il documento contiene `plots=true`. I file già
+presenti nella cartella non vengono cancellati quando un output è disattivato.
+Il titolo del progetto viene mostrato nel riepilogo a terminale.
 
 ## Configurazione
 
@@ -32,7 +70,7 @@ scarico illimitati. I nomi devono essere univoci nella rispettiva collezione.
 `special_tool_change`. Per eseguirlo:
 
 ```bash
-python ford_scorpion_process_simulation.py --config example_config.json --hours 24 --seed 42
+python process_simulation.py --config example_config.md --hours 24 --seed 42
 ```
 
 Le chiavi di `stops` sono nomi liberi; non esistono categorie obbligatorie.
@@ -119,10 +157,10 @@ un ciclo o ripristino che termina proprio lì sarà ancora nello stato precedent
 con il tempo trascorso contabilizzato.
 
 ```python
-from ford_scorpion_process_simulation import load_config, run_simulation
+from process_simulation import load_config, run_simulation
 
 machines, buffers, stops = run_simulation(
-    hours=24, seed=42, config=load_config('example_config.json'), return_events=True
+    hours=24, seed=42, config=load_config('example_config.md'), return_events=True
 )
 ```
 
