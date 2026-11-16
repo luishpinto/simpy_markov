@@ -45,7 +45,7 @@
 | maintenance | time_to_repair | operating_time | lognormal | 1.75 | 1.0 | - | hours | - | - | - |
 | tool_change | trigger | cycle_count | - | - | - | - | - | - | 175 | false |
 | tool_change | time_to_repair | - | fixed | - | - | 5.0 | minutes | - | - | - |
-| special_tool_change | trigger | cycle_count | - | - | - | - | - | - | 120 | false |
+| special_tool_change | trigger | cycle_count | - | - | - | - | - | - | 120 | true |
 | special_tool_change | time_to_repair | - | fixed | - | - | 4.0 | hours | - | - | - |
 
 ### OP0500
